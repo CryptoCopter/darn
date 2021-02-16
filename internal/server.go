@@ -71,6 +71,8 @@ const indexTpl = `<!DOCTYPE html>
 				width: 100%;
 			}
 		</style>
+
+		<title>gosh!</title>
 	</head>
 
 	<body>
@@ -135,6 +137,18 @@ const indexTpl = `<!DOCTYPE html>
 			<button>Upload</button>
 		</form>
 
+		<h2>## Retrieval & Deletion</h2>
+
+		After a successful upload, you will receive a URL
+
+		<pre>{{.Proto}}://{{.Hostname}}/TOKEN</pre>
+
+		you can send a GET-request to retrieve the contents or a DELETE-request to have the server remove the content immediately.
+
+		<pre>$ curl -X DELETE {{.Proto}}://{{.Hostname}}/TOKEN</pre>
+
+		Why is there no HTML form to do that part? Because modifying the request URL of a from on the fly would require javascript.
+
 		<h2>## Privacy</h2>
 
 		This software stores the IP address for each upload. This information is
@@ -156,6 +170,7 @@ const (
 	msgFileSizeExceeds   = "Error: File size exceeds maximum."
 	msgGenericError      = "Error: Something went wrong."
 	msgIllegalMime       = "Error: MIME type is blacklisted."
+	msgIllegalMeme       = "Error: Content banned by EU Article 13"
 	msgLifetimeExceeds   = "Error: Lifetime exceeds maximum."
 	msgNotExists         = "Error: Does not exist."
 	msgUnsupportedMethod = "Error: Method not supported."
@@ -203,16 +218,16 @@ func (serv *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if reqPath := r.URL.Path; reqPath == "/" {
 		serv.handleRoot(w, r)
 	} else {
-		serv.handleRequest(w, r)
+		serv.handleItem(w, r)
 	}
 }
 
 func (serv *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
-	case "GET":
+	case http.MethodGet:
 		serv.handleIndex(w, r)
 
-	case "POST":
+	case http.MethodPost:
 		serv.handleUpload(w, r)
 
 	default:
@@ -306,47 +321,33 @@ func (serv *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "%s://%s/%s\n", WebProtocol(r), r.Host, token)
 }
 
-func (serv *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" {
-		log.WithField("method", r.Method).Debug("Request got wrong method")
+func (serv *Server) handleItem(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		serv.handleRequest(w, r)
+
+	case http.MethodDelete:
+		serv.handleDelete(w, r)
+
+	default:
+		log.WithField("method", r.Method).Debug("Called with unsupported method")
 
 		http.Error(w, msgUnsupportedMethod, http.StatusMethodNotAllowed)
+	}
+}
+
+func (serv *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
+	reqId, secretKey, err := parseURL(r.URL.Path, serv.encrypt)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"error": err,
+		}).Debug("Malformed token")
+
+		http.Error(w, "Malformed request", http.StatusBadRequest)
 		return
 	}
 
-	token := strings.TrimLeft(r.URL.Path, "/")
-	var reqId string
-	var secretKey [KeySize]byte
-	if serv.encrypt {
-		tokenBytes, err := base58.Decode(token)
-		if err != nil {
-			log.WithFields(log.Fields{
-				"error": err,
-			}).Debug("Malformed token")
-
-			http.Error(w, "Malformed request", http.StatusBadRequest)
-			return
-		}
-
-		if len(tokenBytes) != (IDSize + KeySize) {
-			log.WithFields(log.Fields{
-				"length": len(tokenBytes),
-			}).Debug("Token size wrong")
-
-			http.Error(w, "Malformed request", http.StatusBadRequest)
-			return
-		}
-
-		// partition the token into the request ID (first 4 bytes) and the secret key (last 32 bytes)
-		reqId = base58.Encode(tokenBytes[:4])
-		key := tokenBytes[4:]
-		copy(secretKey[:], key)
-	} else {
-		reqId = token
-	}
-
 	var item Item
-	var err error
 	if serv.encrypt {
 		item, err = serv.store.GetDecrypted(reqId, secretKey, true)
 	} else {
@@ -405,6 +406,75 @@ func (serv *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
 			log.WithError(err).WithField("ID", item.ID).Warn("Deletion errored")
 		}
 	}
+}
+
+func (serv *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
+	reqId, secretKey, err := parseURL(r.URL.Path, serv.encrypt)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"error": err,
+		}).Debug("Malformed token")
+
+		http.Error(w, "Malformed request", http.StatusBadRequest)
+		return
+	}
+
+	var item Item
+	if serv.encrypt {
+		item, err = serv.store.GetDecrypted(reqId, secretKey, true)
+	} else {
+		item, err = serv.store.Get(reqId, true)
+	}
+
+	if err == ErrNotFound {
+		log.WithField("ID", reqId).Debug("Requested non-existing ID")
+
+		http.Error(w, msgNotExists, http.StatusNotFound)
+		return
+	} else if err != nil {
+		log.WithError(err).WithField("ID", reqId).Warn("Requesting errored")
+
+		http.Error(w, msgGenericError, http.StatusBadRequest)
+		return
+	}
+
+	err = serv.store.Delete(item)
+	if err != nil {
+		log.WithError(err).Error("Error while attempting to delete item.")
+		http.Error(w, msgGenericError, http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, "Item deleted")
+}
+
+// parseURL takes the request url and parses the item-id and secret key (if encryption is turned on)
+func parseURL(path string, encryption bool) (string, [KeySize]byte, error) {
+	var reqId string
+	var secretKey [KeySize]byte
+
+	token := strings.TrimLeft(path, "/")
+
+	if encryption {
+		tokenBytes, err := base58.Decode(token)
+		if err != nil {
+			return "", [KeySize]byte{}, err
+		}
+
+		if len(tokenBytes) != (IDSize + KeySize) {
+			return "", [KeySize]byte{}, fmt.Errorf("token has wrong size, expected size %v, got size %v", IDSize+KeySize, len(tokenBytes))
+		}
+
+		// partition the token into the request ID (first 4 bytes) and the secret key (last 32 bytes)
+		reqId = base58.Encode(tokenBytes[:4])
+		key := tokenBytes[4:]
+		copy(secretKey[:], key)
+	} else {
+		reqId = token
+	}
+
+	return reqId, secretKey, nil
 }
 
 // WebProtocol returns "http" or "https", based on the X-Forwarded-Proto header.
