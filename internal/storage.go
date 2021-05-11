@@ -38,7 +38,6 @@ var ErrDecryptionError = errors.New("decryption error")
 // Store stores an index of all Items as well as the pure files.
 type Store struct {
 	baseDir string
-	encrypt bool
 
 	bh *badgerhold.Store
 
@@ -49,11 +48,10 @@ type Store struct {
 
 // NewStore opens or initializes a Store in the given directory. A background
 // task for continuous cleaning can be activated.
-func NewStore(baseDir string, backgroundCleanup bool, encrypt bool) (s *Store, err error) {
+func NewStore(baseDir string, backgroundCleanup bool) (s *Store, err error) {
 	s = &Store{
 		baseDir:    baseDir,
 		hasCleanup: backgroundCleanup,
-		encrypt:    encrypt,
 	}
 
 	log.WithField("directory", baseDir).Info("Opening Store")
@@ -175,7 +173,7 @@ func (s *Store) Get(id string, delExpired bool) (i Item, err error) {
 	return
 }
 
-// Get an Item by its ID and decrypt the filename. The Item's content can be accessed with GetFile.
+// GetDecrypted gets an Item by its ID and decrypts the filename. The Item's content can be accessed with GetFile.
 func (s *Store) GetDecrypted(id string, secretKey [KeySize]byte, delExpired bool) (i Item, err error) {
 	i, err = s.Get(id, delExpired)
 	if err != nil {
@@ -199,11 +197,7 @@ func (s *Store) GetDecrypted(id string, secretKey [KeySize]byte, delExpired bool
 
 // GetFile creates a ReadCloser to the Item's file.
 func (s *Store) GetFile(i Item, secretKey [KeySize]byte) (io.ReadCloser, error) {
-	if s.encrypt {
-		return i.ReadEncryptedFile(s.storageDir(), secretKey)
-	} else {
-		return i.ReadFile(s.storageDir())
-	}
+	return i.ReadEncryptedFile(s.storageDir(), secretKey)
 }
 
 // Put a new Item inside the Store. Both a database entry and a file will be created.
@@ -216,45 +210,35 @@ func (s *Store) Put(i Item, file io.ReadCloser) (id string, secretKey [KeySize]b
 		return
 	}
 
-	if s.encrypt {
-		// generate a random key, which will be used to encrypt both the filename and the content
-		// the key will be appended to the generated URL and not saved anywhere
-		if _, err = io.ReadFull(rand.Reader, secretKey[:]); err != nil {
-			log.WithError(err).Warn("Error during key creation")
-			return
-		}
-
-		// encrypt the filename since that might be sensitive
-		var nonce [NonceSize]byte
-		if _, err = io.ReadFull(rand.Reader, nonce[:]); err != nil {
-			log.WithError(err).Warn("Error during nonce creation")
-			return
-		}
-		filename := base58.Encode(secretbox.Seal(nil, []byte(i.Filename), &nonce, &secretKey))
-		i.Filename = filename
-		i.FilenameNonce = nonce
+	// generate a random key, which will be used to encrypt both the filename and the content
+	// the key will be appended to the generated URL and not saved anywhere
+	if _, err = io.ReadFull(rand.Reader, secretKey[:]); err != nil {
+		log.WithError(err).Warn("Error during key creation")
+		return
 	}
+
+	// encrypt the filename since that might be sensitive
+	var nonce [NonceSize]byte
+	if _, err = io.ReadFull(rand.Reader, nonce[:]); err != nil {
+		log.WithError(err).Warn("Error during nonce creation")
+		return
+	}
+	filename := base58.Encode(secretbox.Seal(nil, []byte(i.Filename), &nonce, &secretKey))
+	i.Filename = filename
+	i.FilenameNonce = nonce
 
 	i.ID = id
 	log.WithField("ID", i.ID).Debug("Insert Item with assigned ID")
 
-	if s.encrypt {
-		var chunks uint64
-		var nonces [][NonceSize]byte
-		chunks, nonces, err = i.WriteEncryptedFile(file, secretKey, s.storageDir())
-		if err != nil {
-			log.WithField("ID", i.ID).WithError(err).Warn("Insertion of an Item into storage errored")
-			return
-		}
-		i.Chunks = chunks
-		i.ChunkNonces = nonces
-	} else {
-		err = i.WriteFile(file, s.storageDir())
-		if err != nil {
-			log.WithField("ID", i.ID).WithError(err).Warn("Insertion of an Item into storage errored")
-			return
-		}
+	var chunks uint64
+	var nonces [][NonceSize]byte
+	chunks, nonces, err = i.WriteEncryptedFile(file, secretKey, s.storageDir())
+	if err != nil {
+		log.WithField("ID", i.ID).WithError(err).Warn("Insertion of an Item into storage errored")
+		return
 	}
+	i.Chunks = chunks
+	i.ChunkNonces = nonces
 
 	err = s.bh.Insert(i.ID, i)
 	if err != nil {

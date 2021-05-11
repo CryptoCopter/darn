@@ -91,7 +91,7 @@ const indexTpl = `<!DOCTYPE html>
 			service or stop it completely. Get some help.
 		</p>
 		<p>
-			The darn software can be obtained from
+			The source can be obtained from
 			<a href="https://github.com/CryptoCopter/darn">https://github.com/CryptoCopter/darn</a>
 		</p>
 
@@ -183,15 +183,14 @@ type Server struct {
 	maxLifetime time.Duration
 	contactMail string
 	mimeMap     MimeMap
-	encrypt     bool
 	chunkSize   uint64
 }
 
 // NewServer creates a new Server with a given database directory, and
 // configuration values. The Server must be started as an http.Handler.
 func NewServer(storeDirectory string, maxSize int64, maxLifetime time.Duration,
-	contactMail string, mimeMap MimeMap, encrypt bool, chunkSize uint64) (s *Server, err error) {
-	store, storeErr := NewStore(storeDirectory, true, encrypt)
+	contactMail string, mimeMap MimeMap, chunkSize uint64) (s *Server, err error) {
+	store, storeErr := NewStore(storeDirectory, true)
 	if storeErr != nil {
 		err = storeErr
 		return
@@ -203,7 +202,6 @@ func NewServer(storeDirectory string, maxSize int64, maxLifetime time.Duration,
 		maxLifetime: maxLifetime,
 		contactMail: contactMail,
 		mimeMap:     mimeMap,
-		encrypt:     encrypt,
 		chunkSize:   chunkSize,
 	}
 	return
@@ -307,15 +305,10 @@ func (serv *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		"expires": item.Expires,
 	}).Info("Uploaded new Item")
 
-	var token string
-	if serv.encrypt {
-		// encode the itemid and the secretkey into the returned URL
-		idBytes, _ := base58.Decode(itemId)
-		tokenBytes := append(idBytes, secretKey[:]...)
-		token = base58.Encode(tokenBytes)
-	} else {
-		token = itemId
-	}
+	// encode the itemid and the secretkey into the returned URL
+	idBytes, _ := base58.Decode(itemId)
+	tokenBytes := append(idBytes, secretKey[:]...)
+	token := base58.Encode(tokenBytes)
 
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintf(w, "%s://%s/%s\n", WebProtocol(r), r.Host, token)
@@ -337,7 +330,7 @@ func (serv *Server) handleItem(w http.ResponseWriter, r *http.Request) {
 }
 
 func (serv *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
-	reqId, secretKey, err := parseURL(r.URL.Path, serv.encrypt)
+	reqId, secretKey, err := parseURL(r.URL.Path)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"error": err,
@@ -347,12 +340,7 @@ func (serv *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var item Item
-	if serv.encrypt {
-		item, err = serv.store.GetDecrypted(reqId, secretKey, true)
-	} else {
-		item, err = serv.store.Get(reqId, true)
-	}
+	item, err := serv.store.GetDecrypted(reqId, secretKey, true)
 
 	if err == ErrNotFound {
 		log.WithField("ID", reqId).Debug("Requested non-existing ID")
@@ -409,7 +397,7 @@ func (serv *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func (serv *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
-	reqId, secretKey, err := parseURL(r.URL.Path, serv.encrypt)
+	reqId, secretKey, err := parseURL(r.URL.Path)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"error": err,
@@ -419,12 +407,7 @@ func (serv *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var item Item
-	if serv.encrypt {
-		item, err = serv.store.GetDecrypted(reqId, secretKey, true)
-	} else {
-		item, err = serv.store.Get(reqId, true)
-	}
+	item, err := serv.store.GetDecrypted(reqId, secretKey, true)
 
 	if err == ErrNotFound {
 		log.WithField("ID", reqId).Debug("Requested non-existing ID")
@@ -450,29 +433,25 @@ func (serv *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 }
 
 // parseURL takes the request url and parses the item-id and secret key (if encryption is turned on)
-func parseURL(path string, encryption bool) (string, [KeySize]byte, error) {
+func parseURL(path string) (string, [KeySize]byte, error) {
 	var reqId string
 	var secretKey [KeySize]byte
 
 	token := strings.TrimLeft(path, "/")
 
-	if encryption {
-		tokenBytes, err := base58.Decode(token)
-		if err != nil {
-			return "", [KeySize]byte{}, err
-		}
-
-		if len(tokenBytes) != (IDSize + KeySize) {
-			return "", [KeySize]byte{}, fmt.Errorf("token has wrong size, expected size %v, got size %v", IDSize+KeySize, len(tokenBytes))
-		}
-
-		// partition the token into the request ID (first 4 bytes) and the secret key (last 32 bytes)
-		reqId = base58.Encode(tokenBytes[:4])
-		key := tokenBytes[4:]
-		copy(secretKey[:], key)
-	} else {
-		reqId = token
+	tokenBytes, err := base58.Decode(token)
+	if err != nil {
+		return "", [KeySize]byte{}, err
 	}
+
+	if len(tokenBytes) != (IDSize + KeySize) {
+		return "", [KeySize]byte{}, fmt.Errorf("token has wrong size, expected size %v, got size %v", IDSize+KeySize, len(tokenBytes))
+	}
+
+	// partition the token into the request ID (first 4 bytes) and the secret key (last 32 bytes)
+	reqId = base58.Encode(tokenBytes[:4])
+	key := tokenBytes[4:]
+	copy(secretKey[:], key)
 
 	return reqId, secretKey, nil
 }
