@@ -72,11 +72,11 @@ const indexTpl = `<!DOCTYPE html>
 			}
 		</style>
 
-		<title>gosh!</title>
+		<title>darn!</title>
 	</head>
 
 	<body>
-		<h1># gosh! Go Share</h1>
+		<h1># Just so darn simple</h1>
 		<p>
 			Upload your files to this server and share them with your friends or, if
 			non-existent, shady people from the Internet.
@@ -91,8 +91,8 @@ const indexTpl = `<!DOCTYPE html>
 			service or stop it completely. Get some help.
 		</p>
 		<p>
-			The gosh software can be obtained from
-			<a href="https://github.com/oxzi/gosh">https://github.com/oxzi/gosh</a>
+			The darn software can be obtained from
+			<a href="https://github.com/CryptoCopter/darn">https://github.com/CryptoCopter/darn</a>
 		</p>
 
 		<h2>## Posting</h2>

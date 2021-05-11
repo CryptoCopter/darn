@@ -10,7 +10,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/oxzi/gosh/internal"
+	"github.com/CryptoCopter/darn/internal"
 )
 
 var (

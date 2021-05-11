@@ -1,4 +1,4 @@
-module github.com/oxzi/gosh
+module github.com/CryptoCopter/darn
 
 go 1.15
 

@@ -1,14 +1,16 @@
-# gosh! Go Share ![CI](https://github.com/oxzi/gosh/workflows/CI/badge.svg)
+# Just so darn simple
 
-gosh is a simple HTTP file server on which users can upload their files without
+`darn` is a simple HTTP file server on which users can upload their files without
 login or authentication. All files have a maximum lifetime and are then deleted.
 
+
+This software is a fork of [gosh](https://github.com/oxzi/gosh), which retains the encryption of stored data.
 
 ## Features
 
 - Standalone HTTP web server, no additional server needed
 - Store with both files and some metadata
-- Only safe uploader's IP address for legal reasons, anonymous download
+- Only save uploader's IP address for legal reasons, anonymous download
 - File and all metadata are automatically deleted after expiration
 - Configurable maximum lifetime and file size for uploads
 - Replace or drop configured MIME types
@@ -21,25 +23,22 @@ login or authentication. All files have a maximum lifetime and are then deleted.
 ## Installation
 
 ```bash
-git clone https://github.com/oxzi/gosh.git
-cd gosh
+git clone https://github.com/CryptoCopter/darn.git
+cd darn
 
-go build ./cmd/goshd
-go build ./cmd/gosh-query
+go build ./cmd/darn
 ```
 
 
 ## Commands
-### goshd
+### darn
 
-`goshd` is the web server, as described above.
+`darn` is the web server, as described above.
 
 ```
-Usage of ./goshd:
+Usage of ./darn:
   -chunk-size string
     	Size of chunks for large files (default "1MiB")
-  -config string
-    	Path to an optional config file
   -contact string
     	Contact E-Mail for abuses
   -encrypt
@@ -61,7 +60,7 @@ Usage of ./goshd:
 An example usage could look like this.
 
 ```bash
-./goshd \
+./darn \
   -contact my@email.address \
   -max-filesize 64MiB \
   -max-lifetime 2w \
@@ -78,37 +77,6 @@ text/html text/plain
 
 # Drop PNGs, because reasons.
 image/png DROP
-```
-
-
-### gosh-query
-
-The store can also be queried offline to get information or delete items. This
-is `gosh-query`'s job.
-
-```
-Usage of ./gosh-query:
-  -delete
-        Delete selection
-  -id string
-        Query for an ID
-  -ip-addr string
-        Query for an IP address
-  -store string
-        Path to the store, env variable GOSHSTORE can also be used
-  -verbose
-        Verbose logging
-```
-
-```bash
-# Find all uploads from the localhost:
-./gosh-query -store /path/to/store -ip-addr ::1
-
-# Show information for upload with ID abcdef
-./gosh-query -store /path/to/store -id abcdef
-
-# And delete this one
-./gosh-query -store /path/to/store -delete -id abcdef
 ```
 
 ## Posting
