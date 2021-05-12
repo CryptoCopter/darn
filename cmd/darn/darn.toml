@@ -1,0 +1,12 @@
+[server]
+listen = ":8080"
+contact = "abuse@example.org"
+mime-map = ""
+log-level = "INFO"
+
+[store]
+directory = "/path/to/my/store/dir"
+chunk-size = "1MiB"
+max-filesize = "10MiB"
+max-lifetime = "24h"
+

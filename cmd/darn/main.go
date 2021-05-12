@@ -2,92 +2,95 @@ package main
 
 import (
 	"context"
-	"flag"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/CryptoCopter/darn/internal"
+	"github.com/pelletier/go-toml"
+	log "github.com/sirupsen/logrus"
 )
 
-var (
-	storePath   string
-	maxFilesize int64
-	maxLifetime time.Duration
-	contactMail string
-	mimeMap     internal.MimeMap
-	listenAddr  string
-	verbose     bool
-	chunkSize   uint64
-)
+type ServerConfig struct {
+	Listen   string `toml:"listen"`
+	Contact  string `toml:"contact"`
+	MimeMap  string `toml:"mime-map"`
+	LogLevel string `toml:"log-level"`
+}
 
-func init() {
-	log.SetFormatter(&log.TextFormatter{DisableTimestamp: true})
+type StoreConfig struct {
+	Directory   string `toml:"directory"`
+	ChunkSize   string `toml:"chunk-size"`
+	MaxFilesize string `toml:"max-filesize"`
+	MaxLifetime string `toml:"max-lifetime"`
+}
 
-	var (
-		maxLifetimeStr string
-		maxFilesizeStr string
-		mimeMapStr     string
-		chunkSizeStr   string
-	)
+type daemonConfig struct {
+	Server ServerConfig
+	Store  StoreConfig
+}
 
-	flag.StringVar(&storePath, "store", "", "Path to the store")
-	flag.StringVar(&maxFilesizeStr, "max-filesize", "10MiB", "Maximum file size in bytes")
-	flag.StringVar(&maxLifetimeStr, "max-lifetime", "24h", "Maximum lifetime")
-	flag.StringVar(&contactMail, "contact", "", "Contact E-Mail for abuses")
-	flag.StringVar(&mimeMapStr, "mimemap", "", "MimeMap to substitute/drop MIMEs")
-	flag.StringVar(&listenAddr, "listen", ":8080", "Listen address for the HTTP server")
-	flag.StringVar(&chunkSizeStr, "chunk-size", "1MiB", "Size of chunks for large files. Only relevant if encryption is switched on")
-	flag.BoolVar(&verbose, "verbose", false, "Verbose logging")
+func readConfig(path string) (daemonConfig, error) {
+	config := daemonConfig{}
 
-	flag.Parse()
-
-	if verbose {
-		log.SetLevel(log.DebugLevel)
+	content, err := ioutil.ReadFile(filepath.Clean(path))
+	if err != nil {
+		return config, err
 	}
 
-	if lt, err := internal.ParseDuration(maxLifetimeStr); err != nil {
-		log.WithError(err).Fatal("Failed to parse lifetime")
-	} else {
-		maxLifetime = lt
+	err = toml.Unmarshal(content, &config)
+	return config, err
+}
+
+func parseConfig(config daemonConfig) (*internal.Server, error) {
+	maxLifetime, err := internal.ParseDuration(config.Store.MaxLifetime)
+	if err != nil {
+		return nil, err
 	}
 
-	if bs, err := internal.ParseBytesize(maxFilesizeStr); err != nil {
-		log.WithError(err).Fatal("Failed to parse byte size")
-	} else {
-		maxFilesize = bs
+	maxFilesize, err := internal.ParseBytesize(config.Store.MaxFilesize)
+	if err != nil {
+		return nil, err
 	}
 
-	if cs, err := internal.ParseBytesize(chunkSizeStr); err != nil {
-		log.WithError(err).Fatal("Failed to parse byte size")
+	var chunkSize uint64
+	cs, err := internal.ParseBytesize(config.Store.ChunkSize)
+	if err != nil {
+		return nil, err
 	} else {
 		chunkSize = uint64(cs)
 	}
 
-	if mimeMapStr == "" {
+	var mimeMap internal.MimeMap
+	if config.Server.MimeMap == "" {
 		mimeMap = make(internal.MimeMap)
 	} else {
-		if f, err := os.Open(mimeMapStr); err != nil {
+		if f, err := os.Open(config.Server.MimeMap); err != nil {
 			log.WithError(err).Fatal("Failed to open MimeMap")
 		} else if mm, err := internal.NewMimeMap(f); err != nil {
 			log.WithError(err).Fatal("Failed to parse MimeMap")
 		} else {
-			f.Close()
+			err = f.Close()
+			if err != nil {
+				log.WithError(err).Fatal("Error closing file.")
+			}
 			mimeMap = mm
 		}
 	}
 
-	if storePath == "" {
-		log.Fatal("Store Path must be set, see `--help`")
-	} else if contactMail == "" {
-		log.Fatal("Contact information must be set, see `--help`")
+	server, err := internal.NewServer(
+		config.Store.Directory, maxFilesize, maxLifetime, config.Server.Contact, mimeMap, chunkSize)
+	if err != nil {
+		return nil, err
 	}
+
+	return server, nil
 }
 
-func webserver(server *internal.Server) {
+func webserver(server *internal.Server, listenAddr string) {
 	webServer := &http.Server{
 		Addr:    listenAddr,
 		Handler: server,
@@ -115,13 +118,27 @@ func webserver(server *internal.Server) {
 }
 
 func main() {
-	server, err := internal.NewServer(
-		storePath, maxFilesize, maxLifetime, contactMail, mimeMap, chunkSize)
-	if err != nil {
-		log.WithError(err).Fatal("Failed to start Store")
+	if len(os.Args) != 2 {
+		log.Fatalf("Usage: %s configuration.toml", os.Args[0])
 	}
 
-	webserver(server)
+	config, err := readConfig(os.Args[1])
+	if err != nil {
+		log.WithError(err).Fatal("Error reading config")
+	}
+
+	logLevel, err := log.ParseLevel(config.Server.LogLevel)
+	if err != nil {
+		log.WithError(err).Fatal("Error setting log level")
+	}
+	log.SetLevel(logLevel)
+
+	server, err := parseConfig(config)
+	if err != nil {
+		log.WithError(err).Fatal("Error parsing config")
+	}
+
+	webserver(server, config.Server.Listen)
 
 	if err := server.Close(); err != nil {
 		log.WithError(err).Fatal("Closing errored")
