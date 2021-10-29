@@ -11,7 +11,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/akamensky/base58"
-	"github.com/timshannon/badgerhold"
+	"github.com/timshannon/badgerhold/v4"
 	"golang.org/x/crypto/nacl/secretbox"
 )
 
