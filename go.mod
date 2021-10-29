@@ -4,7 +4,6 @@ go 1.17
 
 require (
 	github.com/akamensky/base58 v0.0.0-20210829145138-ce8bf8802e8f
-	github.com/elastic/go-seccomp-bpf v1.2.0
 	github.com/pelletier/go-toml v1.9.4
 	github.com/sirupsen/logrus v1.8.1
 	github.com/timshannon/badgerhold/v4 v4.0.1

@@ -28,7 +28,7 @@ RestrictSUIDSGID=true
 RestrictAddressFamilies=AF_INET AF_INET6
 RestrictNamespaces=yes
 RemoveIPC=true
-SystemCallFilter=@system-service seccomp
+SystemCallFilter=@system-service
 SystemCallArchitectures=native
 MemoryDenyWriteExecute=true
 

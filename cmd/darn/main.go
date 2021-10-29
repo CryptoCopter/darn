@@ -81,8 +81,6 @@ func parseConfig(config daemonConfig) (*internal.Server, error) {
 		}
 	}
 
-	hardening()
-
 	server, err := internal.NewServer(
 		config.Store.Directory, maxFilesize, maxLifetime, config.Server.Contact, mimeMap, chunkSize)
 	if err != nil {
