@@ -1,0 +1,36 @@
+[Unit]
+Description="Go filesharing server"
+
+[Service]
+Type=simple
+User=darn
+Group=darn
+WorkingDirectory=/srv/darn
+ExecStart=/usr/bin/darn /etc/darn.toml
+Restart=no
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+PrivateMounts=yes
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectProc=noaccess
+ProtectSystem=full
+ProtectHostname=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=yes
+RemoveIPC=true
+SystemCallFilter=@system-service seccomp
+SystemCallArchitectures=native
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target
