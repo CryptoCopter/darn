@@ -6,6 +6,7 @@ import (
 	"testing"
 )
 
+//gocyclo:ignore
 func TestNewMimeMap(t *testing.T) {
 	mm1 := ""
 	mm2 := "# ignore me"
@@ -34,6 +35,7 @@ func TestNewMimeMap(t *testing.T) {
 	}
 }
 
+//gocyclo:ignore
 func TestMimeMap(t *testing.T) {
 	mmBuff := bytes.NewBufferString(strings.TrimSpace(`
 # Just a comment

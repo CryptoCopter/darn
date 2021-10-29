@@ -14,6 +14,7 @@ import (
 	"time"
 )
 
+//gocyclo:ignore
 func TestOwnerType(t *testing.T) {
 	header1 := make(http.Header)
 
@@ -69,6 +70,7 @@ func TestOwnerType(t *testing.T) {
 	}
 }
 
+//gocyclo:ignore
 func TestItem(t *testing.T) {
 	const maxFilesize = 1024
 

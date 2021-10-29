@@ -167,16 +167,16 @@ const indexTpl = `<!DOCTYPE html>
 `
 
 const (
-	msgFileSizeExceeds   = "Error: File size exceeds maximum."
-	msgGenericError      = "Error: Something went wrong."
-	msgIllegalMime       = "Error: MIME type is blacklisted."
-	msgIllegalMeme       = "Error: Content banned by EU Article 13"
+	msgFileSizeExceeds = "Error: File size exceeds maximum."
+	msgGenericError    = "Error: Something went wrong."
+	msgIllegalMime     = "Error: MIME type is blacklisted."
+	// msgIllegalMeme       = "Error: Content banned by EU Article 13"
 	msgLifetimeExceeds   = "Error: Lifetime exceeds maximum."
 	msgNotExists         = "Error: Does not exist."
 	msgUnsupportedMethod = "Error: Method not supported."
 )
 
-// Server implements an http.Handler for up- and download.
+// Server implements a http.Handler for up- and download.
 type Server struct {
 	store       *Store
 	maxSize     int64
@@ -187,7 +187,7 @@ type Server struct {
 }
 
 // NewServer creates a new Server with a given database directory, and
-// configuration values. The Server must be started as an http.Handler.
+// configuration values. The Server must be started as a http.Handler.
 func NewServer(storeDirectory string, maxSize int64, maxLifetime time.Duration,
 	contactMail string, mimeMap MimeMap, chunkSize uint64) (s *Server, err error) {
 	store, storeErr := NewStore(storeDirectory, true)
@@ -270,21 +270,25 @@ func (serv *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 func (serv *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	item, f, err := NewItem(r, serv.maxSize, serv.maxLifetime, serv.chunkSize)
-	if err == ErrLifetimeToLong {
-		log.Info("New Item with a too great lifetime was rejected")
 
-		http.Error(w, msgLifetimeExceeds, http.StatusNotAcceptable)
-		return
-	} else if err == ErrFileToBig {
-		log.Info("New Item with a too great file size was rejected")
+	if err != nil {
+		switch err {
+		case ErrLifetimeToLong:
+			log.Info("New Item with a too great lifetime was rejected")
 
-		http.Error(w, msgFileSizeExceeds, http.StatusNotAcceptable)
-		return
-	} else if err != nil {
-		log.WithError(err).Warn("Failed to create new Item")
+			http.Error(w, msgLifetimeExceeds, http.StatusNotAcceptable)
+			return
+		case ErrFileToBig:
+			log.Info("New Item with a too great file size was rejected")
 
-		http.Error(w, msgGenericError, http.StatusBadRequest)
-		return
+			http.Error(w, msgFileSizeExceeds, http.StatusNotAcceptable)
+			return
+		default:
+			log.WithError(err).Warn("Failed to create new Item")
+
+			http.Error(w, msgGenericError, http.StatusBadRequest)
+			return
+		}
 	} else if serv.mimeMap.MustDrop(item.ContentType) {
 		log.WithField("MIME", item.ContentType).Info("Prevented upload of an illegal MIME")
 
@@ -306,8 +310,8 @@ func (serv *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}).Info("Uploaded new Item")
 
 	// encode the itemid and the secretkey into the returned URL
-	idBytes, _ := base58.Decode(itemId)
-	tokenBytes := append(idBytes, secretKey[:]...)
+	tokenBytes, _ := base58.Decode(itemId)
+	tokenBytes = append(tokenBytes, secretKey[:]...)
 	token := base58.Encode(tokenBytes)
 
 	w.WriteHeader(http.StatusOK)

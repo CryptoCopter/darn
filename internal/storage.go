@@ -152,11 +152,14 @@ func (s *Store) Get(id string, delExpired bool) (i Item, err error) {
 	log.WithField("ID", id).Debug("Requested Item from Store")
 
 	err = s.bh.Get(id, &i)
-	if err == badgerhold.ErrNotFound {
-		log.WithField("ID", id).Debug("Requested Item was not found")
-		err = ErrNotFound
-	} else if err != nil {
-		log.WithField("ID", id).WithError(err).Warn("Requested Item errored")
+	if err != nil {
+		switch err {
+		case badgerhold.ErrNotFound:
+			log.WithField("ID", id).Debug("Requested Item was not found")
+			err = ErrNotFound
+		default:
+			log.WithField("ID", id).WithError(err).Warn("Requested Item errored")
+		}
 	} else if delExpired && i.Expires.Before(time.Now()) {
 		log.WithFields(log.Fields{
 			"ID":      id,

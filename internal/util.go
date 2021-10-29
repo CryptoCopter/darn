@@ -110,7 +110,7 @@ func PrettyDuration(d time.Duration) string {
 		}
 
 		amount := int64(d / elemVal)
-		d = d % elemVal
+		d %= elemVal
 
 		fmt.Fprintf(&b, "%d %s", amount, durationPretty[i])
 		if amount > 1 {

@@ -57,24 +57,31 @@ func NewMimeMap(file io.Reader) (mm MimeMap, err error) {
 
 // MustDrop indicates if a MIME type must be dropped.
 func (mm MimeMap) MustDrop(mime string) bool {
-	if v, exists := mm[mime]; !exists {
-		return false
-	} else if v == MimeDrop {
-		return true
-	} else {
+	v, exists := mm[mime]
+	if !exists {
 		return false
 	}
+
+	if v == MimeDrop {
+		return true
+	}
+
+	return false
 }
 
 // Substitute returns the replaced MIME type and indicates with an error, if
 // the input MIME type must be dropped.
 func (mm MimeMap) Substitute(mime string) (mimeOut string, err error) {
-	if v, exists := mm[mime]; !exists {
+	v, exists := mm[mime]
+	if !exists {
 		mimeOut = mime
-	} else if v == MimeDrop {
-		err = ErrMimeDrop
-	} else {
-		mimeOut = v
 	}
+
+	if v == MimeDrop {
+		err = ErrMimeDrop
+		return
+	}
+
+	mimeOut = v
 	return
 }

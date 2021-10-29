@@ -4,16 +4,16 @@
 login or authentication. All files have a maximum lifetime and are then deleted.
 
 
-This software is a fork of [gosh](https://github.com/oxzi/gosh), which retains the encryption of stored data.
+This software is a fork of [gosh](https://github.com/oxzi/gosh), that retains the encryption of stored data.
 
 ## Features
 
-- Standalone HTTP web server, no additional server needed
+- Standalone HTTP web server, no additional server needed (but recommended, see transport security)
 - Store with both files and some metadata
 - Only save uploader IP address for legal reasons, downloads are anonymous
 - Content and all metadata are automatically deleted after expiration
 - Content and relevant metadata (filename) are encrypted while at rest
-  - This is not so much for the privacy of the shared data, but rather so that the administrator does not have to worry about what crap people are sharing...
+  - This is not so much for the privacy of the shared data, but rather so that the administrator does not have to worry about what crap people are sharing... (I mean come on guys, get a hold of yourself)
 - Configurable maximum lifetime and file size for uploads
 - Replace or drop configured MIME types
 - Simple upload via `curl`, `wget` or the like
@@ -98,4 +98,4 @@ curl -F 'file=@foo.png' -F 'time=1d' -F 'burn=1' http://example.org/
 
 ## Note on transport security
 
-`darn` does not provide any TLS-functionality. If you want to use HTTPS (as I would strongly recommend), use a reverse-proxy.
+`darn` does not provide any TLS-functionality. If you want to use HTTPS (as I would strongly recommend), use a reverse-proxy, such as the amazing [caddy](https://github.com/caddyserver/caddy)

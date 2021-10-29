@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+//gocyclo:ignore
 func TestDurationPattern(t *testing.T) {
 	durationPattern = nil
 	_ = getDurationPattern()
@@ -15,6 +16,7 @@ func TestDurationPattern(t *testing.T) {
 	}
 }
 
+//gocyclo:ignore
 func TestParseDuration(t *testing.T) {
 	tests := []struct {
 		input  string
@@ -44,6 +46,7 @@ func TestParseDuration(t *testing.T) {
 	}
 }
 
+//gocyclo:ignore
 func TestPrettyDuration(t *testing.T) {
 	tests := []struct {
 		input  time.Duration
@@ -64,6 +67,7 @@ func TestPrettyDuration(t *testing.T) {
 	}
 }
 
+//gocyclo:ignore
 func TestParseBytesize(t *testing.T) {
 	tests := []struct {
 		input  string
@@ -95,6 +99,7 @@ func TestParseBytesize(t *testing.T) {
 	}
 }
 
+//gocyclo:ignore
 func TestPrettyBytesize(t *testing.T) {
 	tests := []struct {
 		input  int64

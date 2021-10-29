@@ -28,6 +28,7 @@ func (drc dummyReadCloser) Close() error {
 	return nil
 }
 
+//gocyclo:ignore
 func TestStore(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 
@@ -83,6 +84,7 @@ func TestStore(t *testing.T) {
 	}
 }
 
+//gocyclo:ignore
 func TestStoreCreateId(t *testing.T) {
 	const ids = 1024
 

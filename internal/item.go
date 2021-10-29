@@ -142,15 +142,21 @@ func NewItem(r *http.Request, maxSize int64, maxLifetime time.Duration, chunkSiz
 
 	item.Created = time.Now().UTC()
 
-	if lifetime := r.FormValue(formLifetime); lifetime == "" {
+	lifetime := r.FormValue(formLifetime)
+	if lifetime == "" {
 		item.Expires = item.Created.Add(maxLifetime)
-	} else if parseLt, parseLtErr := ParseDuration(lifetime); parseLtErr != nil {
-		err = parseLtErr
-		return
-	} else if parseLt > maxLifetime {
-		err = ErrLifetimeToLong
-		return
 	} else {
+		parseLt, parseLtErr := ParseDuration(lifetime)
+		if parseLtErr != nil {
+			err = parseLtErr
+			return
+		}
+
+		if parseLt > maxLifetime {
+			err = ErrLifetimeToLong
+			return
+		}
+
 		item.Expires = item.Created.Add(parseLt)
 	}
 
